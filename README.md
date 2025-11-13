@@ -62,6 +62,7 @@ Below are the available REST and Prometheus endpoints exposed by the monitor:
 
 ## ⚙️ Sample Image
 
+
 <p align="center">
-  <img src="assets/sample.png" alt="Process Monitoring Dashboard" width="800"/>
+   <img width="800" height="539" alt="image" src="https://github.com/user-attachments/assets/a882c944-3f27-4053-a345-65ebbb62dbca" />
 </p>
