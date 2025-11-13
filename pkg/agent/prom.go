@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 
+	storage "github.com/RakeshSubramani/process-monitoring/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -45,7 +46,7 @@ func RegisterPromMetrics() {
 	prometheus.MustRegister(GCPU, GMem, GDisk, GNetSent, GNetRecv, GProcCPU, GProcMem)
 }
 
-func UpdatePromMetrics(sys Metrics, procs []ProcessInfo) {
+func UpdatePromMetrics(sys storage.Metrics, procs []storage.ProcessInfo) {
 	GCPU.Set(sys.CPUPercent)
 	GMem.Set(sys.MemoryUsedMB)
 	GDisk.Set(sys.DiskUsedMB)
