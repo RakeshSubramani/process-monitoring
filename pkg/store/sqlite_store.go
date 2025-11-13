@@ -5,102 +5,89 @@ import (
 	"encoding/json"
 	"time"
 
+	models "github.com/RakeshSubramani/process-monitoring/pkg/model"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type SQLiteStore struct {
-	db *sql.DB
+	Db *sql.DB
+}
+type CSVStore struct {
+	Path string
 }
 
-// NewSQLiteStore initializes SQLite and creates tables if not exist
+func InitSQLite(path string) error {
+	s, err := NewSQLiteStore(path)
+	if err != nil {
+		return err
+	}
+	// we close immediately because agent opens another instance — keep this as health-check
+	_ = s
+	return nil
+}
+
 func NewSQLiteStore(path string) (*SQLiteStore, error) {
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open("sqlite3", path+"?_busy_timeout=5000")
 	if err != nil {
 		return nil, err
 	}
-
-	createTable := `
-	CREATE TABLE IF NOT EXISTS snapshots (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		timestamp DATETIME NOT NULL,
-		system_cpu REAL,
-		system_mem REAL,
-		system_disk REAL,
-		system_net_sent REAL,
-		system_net_recv REAL,
-		processes TEXT,
-		connections TEXT
-	);`
-
-	if _, err := db.Exec(createTable); err != nil {
+	s := &SQLiteStore{Db: db}
+	if err := s.InitSchema(); err != nil {
 		return nil, err
 	}
-
-	return &SQLiteStore{db: db}, nil
+	return s, nil
 }
 
-// InsertSnapshot inserts a system snapshot into DB
-func (s *SQLiteStore) InsertSnapshot(snap Snapshot) error {
-	procJSON, _ := json.Marshal(snap.Processes)
-	connJSON, _ := json.Marshal(snap.Connections)
-
-	_, err := s.db.Exec(`
-	INSERT INTO snapshots 
-	(timestamp, system_cpu, system_mem, system_disk, system_net_sent, system_net_recv, processes, connections)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		snap.Timestamp,
-		snap.System.CPUPercent,
-		snap.System.MemoryPercent,
-		// snap.System.DiskPercent,
-		// snap.System.NetSentMB,
-		// snap.System.NetRecvMB,
-		string(procJSON),
-		string(connJSON),
-	)
+func (s *SQLiteStore) InitSchema() error {
+	schema := `
+	CREATE TABLE IF NOT EXISTS snapshots (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		ts DATETIME,
+		system_json TEXT,
+		processes_json TEXT,
+		conns_json TEXT
+	);
+	CREATE INDEX IF NOT EXISTS idx_snap_ts ON snapshots(ts);
+	`
+	_, err := s.Db.Exec(schema)
 	return err
 }
 
-// GetRecentSnapshots fetches last N records
-func (s *SQLiteStore) GetRecentSnapshots(limit int) ([]Snapshot, error) {
-	rows, err := s.db.Query(`
-		SELECT timestamp, system_cpu, system_mem, system_disk, system_net_sent, system_net_recv, processes, connections
-		FROM snapshots
-		ORDER BY id DESC
-		LIMIT ?`, limit)
+func (s *SQLiteStore) InsertSnapshot(sn models.Snapshot) error {
+	sysj, _ := json.Marshal(sn.System)
+	procj, _ := json.Marshal(sn.Processes)
+	connj, _ := json.Marshal(sn.Connections)
+	_, err := s.Db.Exec("INSERT INTO snapshots(ts, system_json, processes_json, conns_json) VALUES (?, ?, ?, ?)",
+		sn.Timestamp.UTC().Format(time.RFC3339), string(sysj), string(procj), string(connj))
+	return err
+}
+
+func (s *SQLiteStore) GetRecentSnapshots(n int) ([]models.Snapshot, error) {
+	rows, err := s.Db.Query("SELECT ts, system_json, processes_json, conns_json FROM snapshots ORDER BY ts DESC LIMIT ?", n)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-
-	var snapshots []Snapshot
-
+	var out []models.Snapshot
 	for rows.Next() {
-		var ts time.Time
-		var cpu, mem, disk, sent, recv float64
-		var procJSON, connJSON string
-
-		if err := rows.Scan(&ts, &cpu, &mem, &disk, &sent, &recv, &procJSON, &connJSON); err != nil {
-			continue
+		var tsStr, sysj, procj, connj string
+		if err := rows.Scan(&tsStr, &sysj, &procj, &connj); err != nil {
+			return nil, err
 		}
-
-		var procs []ProcessInfo
-		var conns []ConnInfo
-		_ = json.Unmarshal([]byte(procJSON), &procs)
-		_ = json.Unmarshal([]byte(connJSON), &conns)
-
-		snapshots = append(snapshots, Snapshot{
-			Timestamp: ts,
-			System: Metrics{
-				CPUPercent:    cpu,
-				MemoryPercent: mem,
-				// DiskPercent:   disk,
-				// NetSentMB:     sent,
-				// NetRecvMB:     recv,
-			},
-			Processes:   procs,
-			Connections: conns,
-		})
+		var sn models.Snapshot
+		ts, _ := time.Parse(time.RFC3339, tsStr)
+		sn.Timestamp = ts
+		json.Unmarshal([]byte(sysj), &sn.System)
+		json.Unmarshal([]byte(procj), &sn.Processes)
+		json.Unmarshal([]byte(connj), &sn.Connections)
+		out = append(out, sn)
 	}
+	return out, nil
+}
 
-	return snapshots, nil
+func CloseSQLite(s *SQLiteStore) error {
+	if s == nil || s.Db == nil {
+		return nil
+	}
+	return s.Db.Close()
 }
