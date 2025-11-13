@@ -1,18 +1,44 @@
-# 🖥️ Go Process Agent
+# 🖥️ Process Monitoring Terminal UI
 
-🚀 A lightweight **system monitoring agent** written in Go that collects CPU, memory, disk, and network metrics — and exposes them for **Prometheus** monitoring.
+A beautiful, interactive **terminal-based system monitor** written in **Go** — built using [`tview`](https://github.com/rivo/tview) and [`gopsutil`](https://github.com/shirou/gopsutil).
 
----
-
-## 🌟 Features
-
-- 📊 Collects real-time **CPU**, **Memory**, **Disk**, and **Network** statistics  
-- 🔌 Exposes a Prometheus-compatible `/metrics` endpoint  
-- ⚙️ Built using pure Go — no external dependencies needed  
-- 🧠 Easy to extend (add your own metrics or export formats)  
-- 🪶 Lightweight, portable, and ideal for learning observability
+It provides **real-time insights** into:
+- 🧠 CPU usage  
+- 💾 Memory consumption  
+- 🧱 Disk utilization  
+- 🌐 Network bandwidth  
+- 🔥 Top active processes (scrollable view)
 
 ---
 
-## 🏗️ Project Structure
+## ✨ Features
 
+✅ Live system resource monitoring  
+✅ Realtime process list sorted by CPU usage  
+✅ Scrollable process table (top 10 visible, scroll for more)  
+✅ Color-coded metrics (CPU load indicators)  
+✅ SQLite persistence for storing snapshots  
+✅ Prometheus metrics endpoint → `http://localhost:9090/metrics`  
+✅ REST API endpoints for metrics and processes  
+
+---
+
+## 🧩 Tech Stack
+
+| Component | Description |
+|------------|--------------|
+| **Go** | Core programming language |
+| **tview** | Terminal UI framework |
+| **gopsutil** | System metrics & process info |
+| **sqlite3** | Lightweight database for snapshots |
+| **Prometheus client** | Exposes metrics for external scraping |
+
+---
+
+## ⚙️ Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone git@github-personal:RakeshSubramani/process-monitoring.git
+   cd process-monitoring/cmd/monitor
+    
