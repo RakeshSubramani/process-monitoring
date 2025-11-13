@@ -4,6 +4,7 @@ import (
 	"sort"
 	"time"
 
+	models "github.com/RakeshSubramani/process-monitoring/pkg/model"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/load"
@@ -12,48 +13,18 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 )
 
-// Metrics holds system metrics
-type Metrics struct {
-	CPUPercent       float64   `json:"cpu_percent"`
-	PerCore          []float64 `json:"per_core,omitempty"`
-	MemoryUsedMB     float64   `json:"memory_used_mb"`
-	MemoryTotalMB    float64   `json:"memory_total_mb"`
-	MemoryPercent    float64   `json:"memory_percent"`
-	DiskUsedMB       float64   `json:"disk_used_mb"`
-	DiskTotalMB      float64   `json:"disk_total_mb"`
-	Load1            float64   `json:"load1"`
-	Load5            float64   `json:"load5"`
-	Load15           float64   `json:"load15"`
-	NetBytesSent     uint64    `json:"net_bytes_sent"`
-	NetBytesRecv     uint64    `json:"net_bytes_recv"`
-	UploadSpeedMBs   float64   `json:"upload_mbps"`
-	DownloadSpeedMBs float64   `json:"download_mbps"`
-	Timestamp        time.Time `json:"timestamp"`
-}
-
 // ProcessInfo minimal process info
-type ProcessInfo struct {
-	PID    int32   `json:"pid"`
-	Name   string  `json:"name"`
-	CPU    float64 `json:"cpu_percent"`
-	Memory float32 `json:"memory_percent"`
-}
 
-// CollectSystem collects system metrics, returns metrics and current totals for network
-func CollectSystem(prevSent, prevRecv uint64, prevTime time.Time) (Metrics, uint64, uint64, time.Time, error) {
+func CollectSystem(prevSent, prevRecv uint64, prevTime time.Time) (models.Metrics, uint64, uint64, time.Time, error) {
 	now := time.Now()
-
 	perCore, _ := cpu.Percent(0, true)
 	total, _ := cpu.Percent(0, false)
-
 	memStats, _ := mem.VirtualMemory()
 	diskStats, _ := disk.Usage("/")
 	l, _ := load.Avg()
-
 	netStats, _ := gnet.IOCounters(false)
 
-	var sent uint64
-	var recv uint64
+	var sent, recv uint64
 	if len(netStats) > 0 {
 		sent = netStats[0].BytesSent
 		recv = netStats[0].BytesRecv
@@ -68,8 +39,8 @@ func CollectSystem(prevSent, prevRecv uint64, prevTime time.Time) (Metrics, uint
 		}
 	}
 
-	m := Metrics{
-		CPUPercent:       0,
+	m := models.Metrics{
+		CPUPercent:       0.0,
 		PerCore:          perCore,
 		MemoryUsedMB:     float64(memStats.Used) / 1024 / 1024,
 		MemoryTotalMB:    float64(memStats.Total) / 1024 / 1024,
@@ -89,18 +60,15 @@ func CollectSystem(prevSent, prevRecv uint64, prevTime time.Time) (Metrics, uint
 	if len(total) > 0 {
 		m.CPUPercent = total[0]
 	}
-
 	return m, sent, recv, now, nil
 }
 
-// CollectTopProcesses returns top N processes sorted by CPU (if limit==0 returns all)
-func CollectTopProcesses(limit int) ([]ProcessInfo, error) {
+func CollectTopProcesses(limit int) ([]models.ProcessInfo, error) {
 	procs, err := process.Processes()
 	if err != nil {
 		return nil, err
 	}
-
-	out := make([]ProcessInfo, 0, len(procs))
+	out := make([]models.ProcessInfo, 0, len(procs))
 	for _, p := range procs {
 		name, err := p.Name()
 		if err != nil || name == "" {
@@ -108,32 +76,11 @@ func CollectTopProcesses(limit int) ([]ProcessInfo, error) {
 		}
 		cpuPct, _ := p.CPUPercent()
 		memPct, _ := p.MemoryPercent()
-
-		out = append(out, ProcessInfo{
-			PID:    p.Pid,
-			Name:   name,
-			CPU:    cpuPct,
-			Memory: memPct,
-		})
+		out = append(out, models.ProcessInfo{Pid: p.Pid, Name: name, CPUPercent: cpuPct, MemPercent: memPct})
 	}
-
-	// sort desc by CPU
-	// simple bubble? use sort
-	// import sort at top
-	// but to avoid extra import here, we'll sort
-	// actually add import
-	// (see top imports)
-	// we'll rely on caller to import sort in this file; add it now
-
-	// we'll perform sort below
-	return sortProcesses(out, limit), nil
-}
-
-// helper to sort and slice
-func sortProcesses(list []ProcessInfo, limit int) []ProcessInfo {
-	sort.Slice(list, func(i, j int) bool { return list[i].CPU > list[j].CPU })
-	if limit > 0 && len(list) > limit {
-		return list[:limit]
+	sort.Slice(out, func(i, j int) bool { return out[i].CPUPercent > out[j].CPUPercent })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
-	return list
+	return out, nil
 }

@@ -1,37 +1,55 @@
 # 🖥️ Process Monitoring Terminal UI
 
-A beautiful, interactive **terminal-based system monitor** written in **Go** — built using [`tview`](https://github.com/rivo/tview) and [`gopsutil`](https://github.com/shirou/gopsutil).
+A beautiful, interactive **terminal-based system monitor** written in **Go** — powered by [`tview`](https://github.com/rivo/tview), [`gopsutil`](https://github.com/shirou/gopsutil), and [`prometheus/client_golang`](https://github.com/prometheus/client_golang).
 
 It provides **real-time insights** into:
 - 🧠 CPU usage  
 - 💾 Memory consumption  
 - 🧱 Disk utilization  
 - 🌐 Network bandwidth  
-- 🔥 Top active processes (scrollable view)
+- 🔥 Top active processes (scrollable + searchable + sortable view)
 
 ---
 
 ## ✨ Features
 
 ✅ Live system resource monitoring  
-✅ Realtime process list sorted by CPU usage  
-✅ Scrollable process table (top 10 visible, scroll for more)  
-✅ Color-coded metrics (CPU load indicators)  
-✅ SQLite persistence for storing snapshots  
+✅ Realtime process list sorted by CPU, Memory, or PID  
+✅ Scrollable process table (↑↓ navigation)  
+✅ Searchable processes (`/` to search, `Enter` to apply, `Esc` to reset)  
+✅ Color-coded metrics (CPU load: 🟩 normal, 🟨 warning, 🟥 high)  
+✅ Kill process with **Ctrl + K** (safe shortcut)  
+✅ SQLite persistence (`monitor.db` stores historical snapshots)  
 ✅ Prometheus metrics endpoint → `http://localhost:9090/metrics`  
-✅ REST API endpoints for metrics and processes  
+✅ REST API endpoints for metrics, processes, and history  
+✅ System health endpoint for readiness/liveness checks  
+
+
+## 🌐 API Endpoints
+
+Below are the available REST and Prometheus endpoints exposed by the monitor:
+
+| **Endpoint** | **Description** | **Example Output** |
+|---------------|-----------------|--------------------|
+| `/metrics` | Prometheus metrics endpoint | Exposes Prometheus-compatible metrics for external scraping. |
+| `/api/metrics` | Returns current CPU, memory, disk, and network metrics | ```json { "cpu_usage": [23.5, 15.4, 12.1], "memory_used_percent": 42.3, "disk_used_percent": 60.7, "network": { "bytes_sent": 14523312, "bytes_recv": 234534123 } } ``` |
+| `/api/processes` | Returns list of top running processes | ```json [ { "pid": 1342, "name": "chrome", "cpu": 32.5, "mem": 4.5 }, { "pid": 2011, "name": "code", "cpu": 12.3, "mem": 2.1 } ] ``` |
+| `/api/history` | Returns stored snapshots from SQLite (`monitor.db`) | ```json [ { "timestamp": "2025-11-13T18:32:00Z", "cpu": 22.1, "mem": 48.5 }, { "timestamp": "2025-11-13T18:33:00Z", "cpu": 25.4, "mem": 49.1 } ] ``` |
+| `/api/health` | Health check endpoint | ```json { "status": "ok", "uptime": "1m23s" } ``` |
+
 
 ---
 
 ## 🧩 Tech Stack
 
 | Component | Description |
-|------------|--------------|
-| **Go** | Core programming language |
+|------------|-------------|
+| **Go** | Core language |
 | **tview** | Terminal UI framework |
-| **gopsutil** | System metrics & process info |
-| **sqlite3** | Lightweight database for snapshots |
-| **Prometheus client** | Exposes metrics for external scraping |
+| **gopsutil** | System metrics and process info |
+| **sqlite3** | Lightweight database for metric snapshots |
+| **prometheus/client_golang** | Prometheus exporter |
+| **net/http** | REST API server |
 
 ---
 
@@ -41,4 +59,9 @@ It provides **real-time insights** into:
    ```bash
    git clone git@github-personal:RakeshSubramani/process-monitoring.git
    cd process-monitoring/cmd/monitor
-    
+
+## ⚙️ Sample Image
+
+<p align="center">
+  <img src="assets/sample.png" alt="Process Monitoring Dashboard" width="800"/>
+</p>

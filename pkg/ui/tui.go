@@ -17,9 +17,10 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
+	_ "modernc.org/sqlite"
 )
 
-func RunTUI(refresh time.Duration) {
+func RunTUI(refresh *time.Duration) {
 	if err := ui.Init(); err != nil {
 		log.Fatalf("failed to initialize termui: %v", err)
 	}
@@ -32,7 +33,7 @@ func RunTUI(refresh time.Duration) {
 	header.SetRect(0, 0, 120, 5)
 
 	table := widgets.NewTable()
-	table.Title = "🔥 Processes (↑↓ Scroll | / Search | s Sort | k Kill | q Quit)"
+	table.Title = "Processes (Ctrl+a Toggle All|↑ Scroll | ↓ Scroll | / Search | Ctrl+s Sort | Ctrl+k Kill | Ctrl+r Restart | Ctrl+q Quit)"
 	table.TextStyle = ui.NewStyle(ui.ColorWhite)
 	table.BorderStyle.Fg = ui.ColorGreen
 	table.FillRow = true
@@ -43,9 +44,10 @@ func RunTUI(refresh time.Duration) {
 	maxVisible := 18
 	sortKey := "cpu"
 	filter := ""
+	showAll := false
 
 	update := func() {
-		// ─── System Info ────────────────────────────────────────────────
+		// ─── System Info ────────────────────────────────
 		cpuPercents, _ := cpu.Percent(0, true)
 		memStats, _ := mem.VirtualMemory()
 		diskStats, _ := disk.Usage("/")
@@ -67,7 +69,7 @@ func RunTUI(refresh time.Duration) {
 			float64(netStats[0].BytesRecv)/1024/1024,
 		)
 
-		// ─── Process Table ──────────────────────────────────────────────
+		// ─── Process Table ──────────────────────────────
 		procs, _ := process.Processes()
 		type pInfo struct {
 			PID  int32
@@ -75,7 +77,6 @@ func RunTUI(refresh time.Duration) {
 			CPU  float64
 			MEM  float32
 		}
-
 		var infos []pInfo
 		for _, p := range procs {
 			name, _ := p.Name()
@@ -115,21 +116,24 @@ func RunTUI(refresh time.Duration) {
 
 		start := offset + 1
 		end := offset + maxVisible
+		if showAll {
+			start, end = 1, len(rows)
+		}
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if start < len(rows) {
-			table.Rows = append(rows[:1], rows[start:end]...)
-		} else {
-			table.Rows = rows[:1]
-		}
+		table.Rows = append(rows[:1], rows[start:end]...)
+
+		// // ─── Save Snapshot ──────────────────────────────
+		// saveToSQLite(db, infos)
+		// saveToCSV(csvWriter, infos)
 	}
 
 	update()
 	ui.Render(header, table)
 
 	uiEvents := ui.PollEvents()
-	ticker := time.NewTicker(refresh)
+	ticker := time.NewTicker(*refresh)
 	defer ticker.Stop()
 
 	searchMode := false
@@ -139,22 +143,27 @@ func RunTUI(refresh time.Duration) {
 		select {
 		case e := <-uiEvents:
 			switch e.ID {
-			case "q", "<C-c>":
+			case "<C-q>", "<C-c>":
 				ui.Close()
 				fmt.Println("👋 Exiting process monitor. Bye!")
 				os.Exit(0)
-
-			case "<Down>":
-				offset++
-				update()
 
 			case "<Up>":
 				if offset > 0 {
 					offset--
 				}
 				update()
+			case "<C-a>":
+				showAll = !showAll
+				update()
 
-			case "s":
+			case "<Down>":
+				if !showAll {
+					offset++
+				}
+				update()
+
+			case "<C-s>":
 				switch sortKey {
 				case "cpu":
 					sortKey = "mem"
@@ -187,13 +196,21 @@ func RunTUI(refresh time.Duration) {
 					update()
 				}
 
-			case "k":
+			case "<C-k>":
 				if len(table.Rows) > 1 {
-					pidStr := table.Rows[1][0] // top visible row
+					pidStr := table.Rows[1][0]
 					pid, _ := strconv.Atoi(pidStr)
 					exec.Command("kill", "-9", fmt.Sprint(pid)).Run()
 					update()
 				}
+
+			case "<C-r>":
+				offset = 0
+				filter = ""
+				searchMode = false
+				showAll = false
+				header.Title = "💻 System Overview"
+				update()
 
 			default:
 				if searchMode && len(e.ID) == 1 {

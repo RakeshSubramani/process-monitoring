@@ -1,9 +1,6 @@
 package agent
 
 import (
-	"fmt"
-
-	storage "github.com/RakeshSubramani/process-monitoring/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -46,20 +43,20 @@ func RegisterPromMetrics() {
 	prometheus.MustRegister(GCPU, GMem, GDisk, GNetSent, GNetRecv, GProcCPU, GProcMem)
 }
 
-func UpdatePromMetrics(sys storage.Metrics, procs []storage.ProcessInfo) {
-	GCPU.Set(sys.CPUPercent)
-	GMem.Set(sys.MemoryUsedMB)
-	GDisk.Set(sys.DiskUsedMB)
-	GNetSent.Set(float64(sys.NetBytesSent))
-	GNetRecv.Set(float64(sys.NetBytesRecv))
+// func UpdatePromMetrics(sys storage.Metrics, procs []storage.ProcessInfo) {
+// 	GCPU.Set(sys.CPUPercent)
+// 	GMem.Set(sys.MemoryUsedMB)
+// 	GDisk.Set(sys.DiskUsedMB)
+// 	GNetSent.Set(float64(sys.NetBytesSent))
+// 	GNetRecv.Set(float64(sys.NetBytesRecv))
 
-	// Reset per-process vectors before setting new values to avoid stale labels
-	GProcCPU.Reset()
-	GProcMem.Reset()
+// 	// Reset per-process vectors before setting new values to avoid stale labels
+// 	GProcCPU.Reset()
+// 	GProcMem.Reset()
 
-	for _, p := range procs {
-		labels := prometheus.Labels{"pid": fmt.Sprintf("%d", p.PID), "name": p.Name}
-		GProcCPU.With(labels).Set(p.CPU)
-		GProcMem.With(labels).Set(float64(p.Memory))
-	}
-}
+// 	for _, p := range procs {
+// 		labels := prometheus.Labels{"pid": fmt.Sprintf("%d", p.PID), "name": p.Name}
+// 		GProcCPU.With(labels).Set(p.CPU)
+// 		GProcMem.With(labels).Set(float64(p.Memory))
+// 	}
+// }
